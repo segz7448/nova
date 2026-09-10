@@ -1,0 +1,51 @@
+name: CI
+
+# Assumes this workflow lives at the root of the agent/ workspace repo
+# (the "frontend" — pnpm workspace containing automaton-vm + the CLI
+# package). The backend deploys from a separate repo and isn't touched
+# here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Build (root + CLI package)
+        run: pnpm run build
+
+      - name: Test — vitest suite
+        run: pnpm run test:ci
+
+      # test:ci already runs `npm run test:node` internally (the two
+      # node:test-based infra tests that vitest's config excludes), so
+      # everything above this line already covers the full test surface.
+      # This step is a separate, explicit smoke test: it proves the
+      # *built artifact* actually runs as a real process, not just that
+      # the source compiles and unit tests pass against source files.
+      - name: Smoke test — built CLI runs
+        run: node packages/cli/dist/index.js

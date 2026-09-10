@@ -1,0 +1,61 @@
+# Merged into agent/scripts/ from backend/agent-runtime/automaton-agent.service
+# as part of the agent-runtime -> agent merge (see /MERGE-NOTES.md).
+#
+# NOTE: this unit was already marked DEPRECATED in agent-runtime (see the
+# body below) in favor of backend/src/orchestrator.ts's spawn/kill admin
+# endpoints. That orchestrator lives in the separate automaton-backend
+# project, not in this agent/ repo, so those endpoints aren't reachable
+# from here. Kept for the same reason the original kept it: history and
+# reference, not a deployment recommendation. Left fully commented out,
+# unchanged from the original.
+
+# /etc/systemd/system/automaton-agent.service
+#
+# next-phase.md Phase 5a (architecture-agent.md §6, The Orchestrator):
+# DEPRECATED. This unit used to be the singleton launcher for this
+# package's dist/index.js — exactly one agent process, ever, with no
+# process-level notion of *which* agent it was beyond whatever env vars
+# happened to be in EnvironmentFile. That assumption is what Phase 5a
+# replaces: every top-level agent this backend knows about (the founder
+# and every Phase 4 clone()) now gets spawned and killed independently
+# by backend/src/orchestrator.ts, via:
+#
+#   POST /admin/orchestrator/:address/spawn   (x-admin-key required)
+#   POST /admin/orchestrator/:address/kill    (x-admin-key required)
+#   GET  /admin/orchestrator/:address/status
+#   GET  /admin/orchestrator/processes
+#
+# instead of systemd managing one hardcoded instance. Do not install or
+# enable this unit for new deployments — start automaton-backend.service
+# (which stays a normal singleton systemd unit; there is only ever one
+# backend) and use the endpoints above to bring up agent processes.
+#
+# Left in the repo, deprecated rather than deleted, for two reasons:
+#   1. A reader following the pre-Phase-5a docs/history to this path
+#      should find an explanation, not a broken reference — the same
+#      "pointer, not a gap" convention next-phase.md's own header
+#      comments use elsewhere (e.g. Phase 4c's erc8004Trust.ts note).
+#   2. Process-level restart-on-crash (Restart=on-failure below) is a
+#      real capability this unit had that orchestrator.ts's Phase 5a
+#      spawn/kill primitives do NOT yet reproduce — that's Phase 5e
+#      (health-check + auto-restart)'s explicit job, not this phase's.
+#      Until 5e ships, a spawned agent process that crashes stays
+#      crashed (correctly reported via GET .../status) until an
+#      operator calls POST .../spawn again by hand.
+#
+# [Unit]
+# Description=Automaton agent runtime (superseded by orchestrator.ts — see above)
+# After=network.target automaton-backend.service
+# Wants=automaton-backend.service
+#
+# [Service]
+# Type=simple
+# User=automaton
+# WorkingDirectory=/opt/automaton-backend/agent-runtime
+# EnvironmentFile=/opt/automaton-backend/agent-runtime/.env
+# ExecStart=/usr/bin/node dist/index.js
+# Restart=on-failure
+# RestartSec=30
+#
+# [Install]
+# WantedBy=multi-user.target
