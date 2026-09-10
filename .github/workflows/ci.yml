@@ -20,8 +20,12 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
+        # No `version:` here on purpose — package.json already pins
+        # "packageManager": "pnpm@10.28.1". Specifying a version here
+        # too makes pnpm/action-setup refuse to run at all ("Multiple
+        # versions of pnpm specified"), since it can't tell which one
+        # is authoritative. Let package.json be the single source of
+        # truth; action-setup reads it automatically.
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,6 +39,20 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      - name: Build (root + CLI package)
+        run: pnpm run build
+
+      - name: Test — vitest suite
+        run: pnpm run test:ci
+
+      # test:ci already runs `npm run test:node` internally (the two
+      # node:test-based infra tests that vitest's config excludes), so
+      # everything above this line already covers the full test surface.
+      # This step is a separate, explicit smoke test: it proves the
+      # *built artifact* actually runs as a real process, not just that
+      # the source compiles and unit tests pass against source files.
+      - name: Smoke test — built CLI runs
+        run: node packages/cli/dist/index.js
       - name: Build (root + CLI package)
         run: pnpm run build
 
